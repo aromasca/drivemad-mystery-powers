@@ -118,8 +118,8 @@ canvas { display: block; }
 </div>
 <canvas id="game"></canvas>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
-<script>
+<script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
+<script is:inline>
 const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
 
 const canvas = document.getElementById('game');
