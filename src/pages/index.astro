@@ -419,9 +419,16 @@ function initLevel() {
 function onLevelComplete() {
   levelComplete = true;
   if (activePower) { activePower.remove(); activePower = null; }
-  showOverlay('LEVEL COMPLETE!', 'Press any key for next level', '#4CAF50');
-  const handler = () => { currentLevel++; initLevel(); window.removeEventListener('keydown', handler); };
-  setTimeout(() => window.addEventListener('keydown', handler), 500);
+  showOverlay('LEVEL COMPLETE!', 'Tap or press any key for next level', '#4CAF50');
+  const handler = () => {
+    currentLevel++; initLevel();
+    window.removeEventListener('keydown', handler);
+    window.removeEventListener('touchstart', handler);
+  };
+  setTimeout(() => {
+    window.addEventListener('keydown', handler);
+    window.addEventListener('touchstart', handler);
+  }, 500);
 }
 
 function showOverlay(text, sub, color) {
