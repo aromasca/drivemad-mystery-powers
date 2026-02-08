@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drive Mad: Mystery Powers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #87CEEB; overflow: hidden; font-family: 'Baloo 2', 'Segoe UI', sans-serif; }
+canvas { display: block; }
+
+#hud {
+  position: fixed; top: 0; left: 0; right: 0; padding: 14px 20px;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  pointer-events: none; z-index: 10;
+}
+#power-display {
+  background: rgba(255,255,255,0.92); border-radius: 16px; padding: 10px 18px;
+  color: #333; min-width: 210px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  border: 3px solid #e0e0e0;
+}
+#power-name { font-size: 18px; font-weight: 800; margin-bottom: 6px; color: #444; }
+#power-timer-bar {
+  height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden;
+}
+#power-timer-fill { height: 100%; background: linear-gradient(90deg, #FF6B6B, #FFD93D); width: 0%; transition: width 0.1s; border-radius: 3px; }
+#stats {
+  background: rgba(255,255,255,0.92); border-radius: 16px; padding: 10px 18px;
+  color: #333; text-align: right; font-size: 15px; font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  border: 3px solid #e0e0e0;
+}
+#level-display { font-size: 20px; font-weight: 800; color: #4A90D9; }
+
+#overlay {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  color: #fff; font-size: 52px; font-weight: 800; text-align: center;
+  pointer-events: none; z-index: 20;
+  text-shadow: 0 4px 0 rgba(0,0,0,0.2), 0 6px 20px rgba(0,0,0,0.3);
+  opacity: 0; transition: opacity 0.3s;
+}
+#overlay.show { opacity: 1; }
+#overlay .sub { font-size: 22px; margin-top: 8px; font-weight: 600; }
+
+#start-screen {
+  position: fixed; inset: 0;
+  background: linear-gradient(180deg, #87CEEB 0%, #B0E0FF 50%, #98D977 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: #333; z-index: 30;
+}
+#start-screen h1 {
+  font-size: 56px; margin-bottom: 4px; color: #fff;
+  text-shadow: 0 4px 0 #4A90D9, 0 6px 0 #3A70A9;
+  letter-spacing: -1px;
+}
+#start-screen h1 span { color: #FFD93D; text-shadow: 0 4px 0 #D4A017, 0 6px 0 #B8860B; }
+#start-screen p { font-size: 20px; color: #556; margin-bottom: 24px; font-weight: 600; }
+#start-screen .key-hint { font-size: 17px; color: #667; font-weight: 600; }
+#start-screen .key-hint kbd {
+  background: #fff; padding: 6px 14px; border-radius: 8px; margin: 0 4px;
+  border: 3px solid #ddd; box-shadow: 0 3px 0 #ccc;
+  font-family: 'Baloo 2', sans-serif; font-weight: 800;
+}
+#start-screen .start-prompt {
+  margin-top: 30px; color: #4A90D9; font-size: 22px; font-weight: 800;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+#touch-controls {
+  display: none;
+  position: fixed; bottom: 30px; left: 0; right: 0;
+  justify-content: space-between; padding: 0 30px;
+  pointer-events: none; z-index: 15;
+}
+.touch-btn {
+  width: 90px; height: 90px; border-radius: 50%;
+  background: rgba(255,255,255,0.35); border: 4px solid rgba(255,255,255,0.6);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 36px; font-weight: 800; color: #fff;
+  pointer-events: auto; user-select: none; -webkit-user-select: none;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  transition: background 0.1s;
+}
+.touch-btn:active, .touch-btn.pressed {
+  background: rgba(255,255,255,0.6);
+}
+@media (pointer: coarse), (max-width: 768px) {
+  #touch-controls { display: flex; }
+}
+</style>
+</head>
+<body>
+<div id="start-screen">
+  <h1>DRIVE MAD</h1>
+  <h1 style="font-size:32px;margin-top:-8px"><span>Mystery Powers</span></h1>
+  <p>Navigate the track without flipping!</p>
+  <div class="key-hint">Use <kbd>&larr;</kbd> <kbd>&rarr;</kbd> to drive</div>
+  <div class="start-prompt">Tap or press any key to start</div>
+</div>
+<div id="hud">
+  <div id="power-display">
+    <div id="power-name">No Power</div>
+    <div id="power-timer-bar"><div id="power-timer-fill"></div></div>
+  </div>
+  <div id="stats">
+    <div id="level-display">Level 1</div>
+    <div id="distance-display">0m</div>
+  </div>
+</div>
+<div id="overlay"></div>
+<div id="touch-controls">
+  <div id="btn-left" class="touch-btn">&larr;</div>
+  <div id="btn-right" class="touch-btn">&rarr;</div>
+</div>
+<canvas id="game"></canvas>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
+<script>
+const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const powerNameEl = document.getElementById('power-name');
+const powerTimerFill = document.getElementById('power-timer-fill');
+const levelDisplay = document.getElementById('level-display');
+const distanceDisplay = document.getElementById('distance-display');
+const startScreen = document.getElementById('start-screen');
+
+let W, H;
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (startScreen.style.display !== 'none') {
+    startScreen.style.display = 'none';
+    startGame();
+  }
+});
+window.addEventListener('keyup', e => keys[e.key] = false);
+
+// Touch controls
+const btnLeft = document.getElementById('btn-left');
+const btnRight = document.getElementById('btn-right');
+function touchStart(key, btn) {
+  return e => {
+    e.preventDefault();
+    keys[key] = true;
+    btn.classList.add('pressed');
+    if (startScreen.style.display !== 'none') {
+      startScreen.style.display = 'none';
+      startGame();
+    }
+  };
+}
+function touchEnd(key, btn) {
+  return e => { e.preventDefault(); keys[key] = false; btn.classList.remove('pressed'); };
+}
+btnLeft.addEventListener('touchstart', touchStart('ArrowLeft', btnLeft), { passive: false });
+btnLeft.addEventListener('touchend', touchEnd('ArrowLeft', btnLeft), { passive: false });
+btnLeft.addEventListener('touchcancel', touchEnd('ArrowLeft', btnLeft), { passive: false });
+btnRight.addEventListener('touchstart', touchStart('ArrowRight', btnRight), { passive: false });
+btnRight.addEventListener('touchend', touchEnd('ArrowRight', btnRight), { passive: false });
+btnRight.addEventListener('touchcancel', touchEnd('ArrowRight', btnRight), { passive: false });
+
+startScreen.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (startScreen.style.display !== 'none') {
+    startScreen.style.display = 'none';
+    startGame();
+  }
+}, { passive: false });
+
+// Game state
+let engine, car, wheels, constraints, trackBodies, finishX, currentLevel = 1;
+let activePower = null, powerTimer = 0, nextPowerTime = 0, powerDuration = 0, powerElapsed = 0;
+let flipTimer = 0, flipped = false, levelComplete = false, gameStarted = false;
+let reverseControls = false;
+let screenTint = null;
+let cameraX = 0, cameraY = 0;
+
+// Clouds (persistent across levels for parallax)
+const clouds = [];
+for (let i = 0; i < 15; i++) {
+  clouds.push({
+    x: Math.random() * 4000,
+    y: 30 + Math.random() * 180,
+    w: 80 + Math.random() * 120,
+    h: 30 + Math.random() * 30,
+    speed: 0.02 + Math.random() * 0.03
+  });
+}
+
+// Colors - Drive Mad palette
+const COL = {
+  sky1: '#87CEEB',
+  sky2: '#B8E4FF',
+  sky3: '#D4F0FF',
+  grass: '#6BC24A',
+  grassDark: '#4FA832',
+  grassLight: '#7ED957',
+  dirt: '#8B6914',
+  dirtDark: '#6B4F10',
+  carBody: '#FF5722',
+  carBodyDark: '#D84315',
+  carRoof: '#E64A19',
+  carWindow: '#81D4FA',
+  carWindowShine: '#B3E5FC',
+  wheelOuter: '#37474F',
+  wheelInner: '#78909C',
+  wheelHub: '#CFD8DC',
+  white: '#FFFFFF',
+  finishBlack: '#333333',
+  flag: '#FF1744',
+};
+
+// Powers
+const powers = [
+  {
+    name: 'Slippery Wheels', icon: '🧊',
+    apply() { wheels.forEach(w => { w._origFriction = w.friction; w.friction = 0.01; }); screenTint = 'rgba(173,216,255,0.15)'; },
+    remove() { wheels.forEach(w => { w.friction = w._origFriction || 0.8; }); screenTint = null; }
+  },
+  {
+    name: 'Heavy Car', icon: '🪨',
+    apply() { [car, ...wheels].forEach(b => { b._origGravity = b.plugin.gravityScale; b.plugin.gravityScale = 3; }); screenTint = 'rgba(139,69,20,0.1)'; },
+    remove() { [car, ...wheels].forEach(b => { b.plugin.gravityScale = b._origGravity || 1; }); screenTint = null; }
+  },
+  {
+    name: 'Reverse!', icon: '🔄',
+    apply() { reverseControls = true; screenTint = 'rgba(255,100,150,0.1)'; },
+    remove() { reverseControls = false; screenTint = null; }
+  },
+  {
+    name: 'Bouncy!', icon: '🏀',
+    apply() { [car, ...wheels].forEach(b => { b._origRest = b.restitution; b.restitution = 0.9; }); screenTint = 'rgba(100,255,100,0.1)'; },
+    remove() { [car, ...wheels].forEach(b => { b.restitution = b._origRest || 0.1; }); screenTint = null; }
+  },
+  {
+    name: 'Slow Mo', icon: '🐌',
+    apply() { engine.timing.timeScale = 0.4; screenTint = 'rgba(200,200,255,0.12)'; },
+    remove() { engine.timing.timeScale = 1; screenTint = null; }
+  },
+  {
+    name: 'Extra Grip', icon: '🦎',
+    apply() { wheels.forEach(w => { w._origFriction = w.friction; w.friction = 1.5; }); screenTint = 'rgba(100,200,100,0.1)'; },
+    remove() { wheels.forEach(w => { w.friction = w._origFriction || 0.8; }); screenTint = null; }
+  },
+  {
+    name: 'Moon Gravity', icon: '🌙',
+    apply() { [car, ...wheels].forEach(b => { b._origGravity = b.plugin.gravityScale; b.plugin.gravityScale = 0.3; }); screenTint = 'rgba(220,220,255,0.12)'; },
+    remove() { [car, ...wheels].forEach(b => { b.plugin.gravityScale = b._origGravity || 1; }); screenTint = null; }
+  },
+  {
+    name: 'TURBO!', icon: '🚀',
+    apply() { this._active = true; screenTint = 'rgba(255,120,0,0.12)'; },
+    remove() { this._active = false; screenTint = null; }
+  }
+];
+
+function buildTrack(level) {
+  const segments = [];
+  const difficulty = Math.min(level, 5);
+  segments.push({ type: 'flat', length: 300 });
+  for (let i = 0; i < 8 + difficulty * 3; i++) {
+    const r = Math.random();
+    const steepness = 1 + difficulty * 0.3;
+    if (r < 0.25) segments.push({ type: 'ramp', length: 140 + Math.random() * 80, angle: (10 + Math.random() * 15 * steepness) * (Math.random() > 0.5 ? -1 : 1) });
+    else if (r < 0.45) segments.push({ type: 'hill', length: 150 + Math.random() * 100 });
+    else if (r < 0.6) segments.push({ type: 'steep', length: 100 + Math.random() * 60, angle: (20 + Math.random() * 15 * steepness) * (Math.random() > 0.4 ? -1 : 1) });
+    else if (r < 0.75) segments.push({ type: 'bumps', length: 200 + Math.random() * 100 });
+    else segments.push({ type: 'flat', length: 60 + Math.random() * 80 });
+  }
+  segments.push({ type: 'flat', length: 300 });
+
+  const bodies = [];
+  let x = -200, y = 400;
+  const thickness = 50;
+
+  for (const seg of segments) {
+    if (seg.type === 'flat') {
+      const b = Bodies.rectangle(x + seg.length / 2, y + thickness / 2, seg.length, thickness, { isStatic: true, friction: 1 });
+      b._trackPiece = true;
+      bodies.push(b);
+      x += seg.length;
+    } else if (seg.type === 'ramp') {
+      const rad = (seg.angle * Math.PI) / 180;
+      const dx = Math.cos(rad) * seg.length;
+      const dy = -Math.sin(rad) * seg.length;
+      const b = Bodies.rectangle(x + dx / 2, y + dy / 2 + thickness / 2, seg.length, thickness, { isStatic: true, angle: -rad, friction: 1 });
+      b._trackPiece = true;
+      bodies.push(b);
+      x += dx;
+      y += dy;
+    } else if (seg.type === 'gap') {
+      x += seg.length;
+    } else if (seg.type === 'steep') {
+      // Like ramp but steeper — challenging to climb/descend
+      const rad = (seg.angle * Math.PI) / 180;
+      const dx = Math.cos(rad) * seg.length;
+      const dy = -Math.sin(rad) * seg.length;
+      const b = Bodies.rectangle(x + dx / 2, y + dy / 2 + thickness / 2, seg.length, thickness, { isStatic: true, angle: -rad, friction: 1 });
+      b._trackPiece = true;
+      bodies.push(b);
+      x += dx;
+      y += dy;
+    } else if (seg.type === 'hill') {
+      const steps = 12;
+      const stepLen = seg.length / steps;
+      for (let j = 0; j < steps; j++) {
+        const angle = Math.sin((j / steps) * Math.PI) * 0.5;
+        const dy = -Math.sin((j / steps) * Math.PI) * 4;
+        const b = Bodies.rectangle(x + stepLen / 2, y + dy + thickness / 2, stepLen + 2, thickness, { isStatic: true, angle: -angle * 0.6, friction: 1 });
+        b._trackPiece = true;
+        bodies.push(b);
+        x += stepLen;
+      }
+    } else if (seg.type === 'bumps') {
+      // Series of small sharp bumps
+      const bumpCount = 5 + Math.floor(Math.random() * 4);
+      const stepLen = seg.length / bumpCount;
+      for (let j = 0; j < bumpCount; j++) {
+        const bumpAngle = Math.sin((j / bumpCount) * Math.PI * bumpCount) * 0.3;
+        const dy = -Math.abs(Math.sin((j * 2 / bumpCount) * Math.PI)) * 6;
+        const b = Bodies.rectangle(x + stepLen / 2, y + dy + thickness / 2, stepLen + 2, thickness, { isStatic: true, angle: bumpAngle * (j % 2 === 0 ? 1 : -1), friction: 1 });
+        b._trackPiece = true;
+        bodies.push(b);
+        x += stepLen;
+      }
+    }
+  }
+
+  finishX = x - 100;
+  const finish = Bodies.rectangle(finishX, y - 60, 10, 120, { isStatic: true, isSensor: true, label: 'finish' });
+  finish._finishY = y;
+  bodies.push(finish);
+
+  return bodies;
+}
+
+function createCar(x, y) {
+  const chassisW = 84, chassisH = 20;
+  const wheelR = 16;
+  const wheelY = 24; // distance below chassis center
+
+  const chassis = Bodies.rectangle(x, y, chassisW, chassisH, {
+    collisionFilter: { group: -1 },
+    density: 0.002, friction: 0.5, restitution: 0.05, label: 'chassis',
+    chamfer: { radius: 5 },
+    plugin: { gravityScale: 1 }
+  });
+
+  const wl = Bodies.circle(x - 30, y + wheelY, wheelR, {
+    collisionFilter: { group: -1 },
+    density: 0.004, friction: 0.9, restitution: 0.05, label: 'wheel',
+    plugin: { gravityScale: 1 }
+  });
+  const wr = Bodies.circle(x + 30, y + wheelY, wheelR, {
+    collisionFilter: { group: -1 },
+    density: 0.004, friction: 0.9, restitution: 0.05, label: 'wheel',
+    plugin: { gravityScale: 1 }
+  });
+
+  const axleL = Constraint.create({ bodyA: chassis, pointA: { x: -30, y: wheelY }, bodyB: wl, stiffness: 0.6, damping: 0.1, length: 0 });
+  const axleR = Constraint.create({ bodyA: chassis, pointA: { x: 30, y: wheelY }, bodyB: wr, stiffness: 0.6, damping: 0.1, length: 0 });
+
+  return { chassis, wheels: [wl, wr], constraints: [axleL, axleR] };
+}
+
+function initLevel() {
+  engine = Engine.create({ gravity: { x: 0, y: 1.5 } });
+  trackBodies = buildTrack(currentLevel);
+  const carData = createCar(0, 200);
+  car = carData.chassis;
+  wheels = carData.wheels;
+  constraints = carData.constraints;
+
+  Composite.add(engine.world, [...trackBodies, car, ...wheels, ...constraints]);
+
+  Events.on(engine, 'collisionStart', e => {
+    for (const pair of e.pairs) {
+      if ((pair.bodyA.label === 'finish' && pair.bodyB === car) ||
+          (pair.bodyB.label === 'finish' && pair.bodyA === car)) {
+        if (!levelComplete) onLevelComplete();
+      }
+    }
+  });
+
+  Events.on(engine, 'beforeUpdate', () => {
+    [car, ...wheels].forEach(b => {
+      const scale = (b.plugin && b.plugin.gravityScale) || 1;
+      if (scale !== 1) {
+        Body.applyForce(b, b.position, {
+          x: engine.gravity.x * b.mass * (scale - 1) * 0.001,
+          y: engine.gravity.y * b.mass * (scale - 1) * 0.001
+        });
+      }
+    });
+  });
+
+  flipTimer = 0; flipped = false; levelComplete = false;
+  activePower = null; reverseControls = false; screenTint = null;
+  engine.timing.timeScale = 1;
+  powerTimer = 0; nextPowerTime = 8 + Math.random() * 4;
+  powerElapsed = 0; powerDuration = 0;
+  powerNameEl.textContent = 'No Power';
+  powerTimerFill.style.width = '0%';
+  overlay.classList.remove('show');
+  levelDisplay.textContent = 'Level ' + currentLevel;
+}
+
+function onLevelComplete() {
+  levelComplete = true;
+  if (activePower) { activePower.remove(); activePower = null; }
+  showOverlay('LEVEL COMPLETE!', 'Press any key for next level', '#4CAF50');
+  const handler = () => { currentLevel++; initLevel(); window.removeEventListener('keydown', handler); };
+  setTimeout(() => window.addEventListener('keydown', handler), 500);
+}
+
+function showOverlay(text, sub, color) {
+  overlay.innerHTML = `<div style="color:${color || '#fff'}">${text}</div>${sub ? `<div class="sub">${sub}</div>` : ''}`;
+  overlay.classList.add('show');
+}
+
+function restartLevel() {
+  if (activePower) { activePower.remove(); activePower = null; }
+  initLevel();
+}
+
+function activateRandomPower() {
+  if (activePower) activePower.remove();
+  const p = powers[Math.floor(Math.random() * powers.length)];
+  activePower = p;
+  powerDuration = 3 + Math.random() * 2;
+  powerElapsed = 0;
+  p.apply();
+  powerNameEl.textContent = p.icon + ' ' + p.name;
+  showOverlay(p.icon + ' ' + p.name, '', '#FFD93D');
+  setTimeout(() => overlay.classList.remove('show'), 1200);
+}
+
+function deactivatePower() {
+  if (activePower) { activePower.remove(); activePower = null; }
+  powerNameEl.textContent = 'No Power';
+  powerTimerFill.style.width = '0%';
+  nextPowerTime = 8 + Math.random() * 4;
+  powerTimer = 0;
+}
+
+// Drawing helpers
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function drawCar() {
+  ctx.save();
+  ctx.translate(car.position.x, car.position.y);
+  ctx.rotate(car.angle);
+
+  // Shadow under car
+  ctx.fillStyle = 'rgba(0,0,0,0.1)';
+  ctx.beginPath();
+  ctx.ellipse(0, 20, 44, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Main body
+  roundRect(-42, -13, 84, 28, 8);
+  ctx.fillStyle = COL.carBody;
+  ctx.fill();
+  ctx.strokeStyle = COL.carBodyDark;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Cabin / roof
+  ctx.beginPath();
+  ctx.moveTo(-8, -13);
+  ctx.lineTo(-2, -28);
+  ctx.lineTo(28, -28);
+  ctx.lineTo(34, -13);
+  ctx.closePath();
+  ctx.fillStyle = COL.carRoof;
+  ctx.fill();
+  ctx.strokeStyle = COL.carBodyDark;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Window
+  ctx.beginPath();
+  ctx.moveTo(0, -14);
+  ctx.lineTo(4, -26);
+  ctx.lineTo(26, -26);
+  ctx.lineTo(30, -14);
+  ctx.closePath();
+  ctx.fillStyle = COL.carWindow;
+  ctx.fill();
+
+  // Window shine
+  ctx.beginPath();
+  ctx.moveTo(3, -15);
+  ctx.lineTo(5, -24);
+  ctx.lineTo(10, -24);
+  ctx.lineTo(8, -15);
+  ctx.closePath();
+  ctx.fillStyle = COL.carWindowShine;
+  ctx.fill();
+
+  // Headlight
+  ctx.beginPath();
+  ctx.arc(40, -2, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#FFF9C4';
+  ctx.fill();
+  ctx.strokeStyle = '#F9A825';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Taillight
+  ctx.beginPath();
+  ctx.arc(-40, -2, 3, 0, Math.PI * 2);
+  ctx.fillStyle = '#EF5350';
+  ctx.fill();
+
+  // Bumper
+  roundRect(36, 2, 8, 12, 2);
+  ctx.fillStyle = '#BDBDBD';
+  ctx.fill();
+
+  ctx.restore();
+
+  // Wheels (drawn separately because they rotate independently)
+  for (const w of wheels) {
+    ctx.save();
+    ctx.translate(w.position.x, w.position.y);
+    ctx.rotate(w.angle);
+
+    // Tire
+    ctx.beginPath();
+    ctx.arc(0, 0, 17, 0, Math.PI * 2);
+    ctx.fillStyle = COL.wheelOuter;
+    ctx.fill();
+
+    // Rim
+    ctx.beginPath();
+    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+    ctx.fillStyle = COL.wheelInner;
+    ctx.fill();
+
+    // Hub
+    ctx.beginPath();
+    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.fillStyle = COL.wheelHub;
+    ctx.fill();
+
+    // Spokes
+    ctx.strokeStyle = COL.wheelHub;
+    ctx.lineWidth = 2;
+    for (let s = 0; s < 5; s++) {
+      const a = (s / 5) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * 4, Math.sin(a) * 4);
+      ctx.lineTo(Math.cos(a) * 10, Math.sin(a) * 10);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+}
+
+function drawTrack() {
+  for (const b of trackBodies) {
+    if (b.isSensor) {
+      // Finish line — flag pole + checkered flag
+      const fy = b._finishY || b.position.y + 60;
+      ctx.save();
+      // Pole
+      ctx.fillStyle = '#999';
+      ctx.fillRect(b.position.x - 3, fy - 140, 6, 140);
+      // Flag
+      for (let row = 0; row < 4; row++) {
+        for (let col = 0; col < 5; col++) {
+          ctx.fillStyle = (row + col) % 2 === 0 ? COL.white : COL.finishBlack;
+          ctx.fillRect(b.position.x + 3 + col * 10, fy - 140 + row * 10, 10, 10);
+        }
+      }
+      // Finish line on ground
+      for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = i % 2 === 0 ? COL.white : COL.finishBlack;
+        ctx.fillRect(b.position.x - 30 + i * 10, fy - 4, 10, 8);
+      }
+      ctx.restore();
+      continue;
+    }
+
+    if (!b._trackPiece) continue;
+
+    ctx.save();
+    ctx.translate(b.position.x, b.position.y);
+    ctx.rotate(b.angle);
+
+    const verts = b.vertices;
+    const hw = Math.max(...verts.map(v => {
+      const dx = v.x - b.position.x;
+      const dy = v.y - b.position.y;
+      return Math.abs(Math.cos(-b.angle) * dx - Math.sin(-b.angle) * dy);
+    }));
+    const hh = Math.max(...verts.map(v => {
+      const dx = v.x - b.position.x;
+      const dy = v.y - b.position.y;
+      return Math.abs(Math.sin(-b.angle) * dx + Math.cos(-b.angle) * dy);
+    }));
+
+    // Dirt layer (bottom)
+    roundRect(-hw, -hh, hw * 2, hh * 2, 4);
+    ctx.fillStyle = COL.dirt;
+    ctx.fill();
+    ctx.strokeStyle = COL.dirtDark;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Grass layer (top)
+    roundRect(-hw, -hh, hw * 2, hh * 0.5, 4);
+    ctx.fillStyle = COL.grass;
+    ctx.fill();
+
+    // Grass highlight (very top)
+    roundRect(-hw + 2, -hh, hw * 2 - 4, 6, 3);
+    ctx.fillStyle = COL.grassLight;
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+function drawBackground() {
+  // Sky gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, COL.sky3);
+  grad.addColorStop(0.4, COL.sky2);
+  grad.addColorStop(1, COL.sky1);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Sun
+  const sunX = W * 0.8 - cameraX * 0.01;
+  ctx.beginPath();
+  ctx.arc(sunX, 80, 50, 0, Math.PI * 2);
+  ctx.fillStyle = '#FFF9C4';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(sunX, 80, 44, 0, Math.PI * 2);
+  ctx.fillStyle = '#FFE082';
+  ctx.fill();
+
+  // Clouds
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  for (const c of clouds) {
+    const cx = ((c.x - cameraX * c.speed) % (W + 300)) - 150;
+    ctx.beginPath();
+    ctx.ellipse(cx, c.y, c.w * 0.5, c.h * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(cx - c.w * 0.25, c.y + 4, c.w * 0.3, c.h * 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(cx + c.w * 0.25, c.y + 2, c.w * 0.35, c.h * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Background hills (far)
+  ctx.fillStyle = '#A8D98A';
+  for (let i = -1; i < 12; i++) {
+    const hx = i * 280 - (cameraX * 0.08) % 280;
+    ctx.beginPath();
+    ctx.arc(hx, H - 20, 180, Math.PI, 0);
+    ctx.fill();
+  }
+
+  // Background hills (near)
+  ctx.fillStyle = '#8BC663';
+  for (let i = -1; i < 10; i++) {
+    const hx = i * 350 + 100 - (cameraX * 0.15) % 350;
+    ctx.beginPath();
+    ctx.arc(hx, H - 10, 160, Math.PI, 0);
+    ctx.fill();
+  }
+}
+
+// Particles for turbo
+let particles = [];
+function spawnParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.8) * 3,
+      life: 0.5 + Math.random() * 0.5, maxLife: 0.5 + Math.random() * 0.5,
+      r: 3 + Math.random() * 4, color
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.1;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const alpha = Math.max(0, p.life / p.maxLife);
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * alpha, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+let lastTime = 0;
+function gameLoop(time) {
+  const dt = Math.min((time - lastTime) / 1000, 0.05);
+  lastTime = time;
+
+  if (!gameStarted) { requestAnimationFrame(gameLoop); return; }
+
+  Engine.update(engine, 16.67);
+
+  // Controls
+  if (!flipped && !levelComplete) {
+    const torque = 0.08;
+    let left = keys['ArrowLeft'], right = keys['ArrowRight'];
+    if (reverseControls) [left, right] = [right, left];
+    if (right) wheels.forEach(w => Body.setAngularVelocity(w, Math.min(w.angularVelocity + torque, 0.5)));
+    if (left) wheels.forEach(w => Body.setAngularVelocity(w, Math.max(w.angularVelocity - torque, -0.5)));
+
+    if (activePower && activePower.name === 'TURBO!' && activePower._active) {
+      Body.applyForce(car, car.position, { x: 0.008, y: 0 });
+      // Turbo particles
+      const wx = car.position.x - Math.cos(car.angle) * 42;
+      const wy = car.position.y - Math.sin(car.angle) * 42;
+      spawnParticles(wx, wy, '#FF6D00', 2);
+    }
+  }
+
+  // Flip detection — normalize angle and check if car is upside-down-ish
+  if (!levelComplete) {
+    let a = car.angle % (Math.PI * 2);
+    if (a > Math.PI) a -= Math.PI * 2;
+    if (a < -Math.PI) a += Math.PI * 2;
+    const isFlipped = Math.abs(a) > 1.8;
+    // Also detect if chassis is touching ground (landed on roof)
+    const wheelsAboveChassis = wheels.every(w => w.position.y < car.position.y);
+
+    if (isFlipped || wheelsAboveChassis) {
+      flipTimer += dt;
+      if (flipTimer > 0.5 && !flipped) {
+        flipped = true;
+        showOverlay('FLIPPED!', 'Restarting...', '#FF5252');
+        setTimeout(restartLevel, 1500);
+      }
+    } else {
+      flipTimer = Math.max(0, flipTimer - dt * 2);
+    }
+    if (car.position.y > 800 && !flipped) {
+      flipped = true;
+      showOverlay('FELL OFF!', 'Restarting...', '#FF5252');
+      setTimeout(restartLevel, 1500);
+    }
+  }
+
+  // Power timer
+  if (!flipped && !levelComplete) {
+    if (!activePower) {
+      powerTimer += dt;
+      if (powerTimer >= nextPowerTime) activateRandomPower();
+    } else {
+      powerElapsed += dt;
+      powerTimerFill.style.width = ((1 - powerElapsed / powerDuration) * 100) + '%';
+      if (powerElapsed >= powerDuration) deactivatePower();
+    }
+  }
+
+  updateParticles(dt);
+
+  distanceDisplay.textContent = Math.max(0, Math.round(car.position.x / 10)) + 'm';
+
+  // Camera
+  const targetCX = car.position.x - W / 2 + 200;
+  const targetCY = car.position.y - H / 2 + 100;
+  cameraX += (targetCX - cameraX) * 0.08;
+  cameraY += (targetCY - cameraY) * 0.04;
+
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+
+  drawBackground();
+
+  ctx.save();
+  ctx.translate(-cameraX, -cameraY);
+
+  drawTrack();
+  drawCar();
+  drawParticles();
+
+  ctx.restore();
+
+  // Screen tint
+  if (screenTint) {
+    ctx.fillStyle = screenTint;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+function startGame() {
+  gameStarted = true;
+  initLevel();
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
