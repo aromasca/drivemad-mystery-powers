@@ -108,6 +108,7 @@ canvas { display: block; }
   </div>
   <div id="stats">
     <div id="level-display">Level 1</div>
+    <div id="level-time">0.0s</div>
     <div id="distance-display">0m</div>
   </div>
 </div>
@@ -129,6 +130,7 @@ const powerNameEl = document.getElementById('power-name');
 const powerTimerFill = document.getElementById('power-timer-fill');
 const levelDisplay = document.getElementById('level-display');
 const distanceDisplay = document.getElementById('distance-display');
+const levelTimeDisplay = document.getElementById('level-time');
 const startScreen = document.getElementById('start-screen');
 
 let W, H;
@@ -182,6 +184,7 @@ startScreen.addEventListener('touchstart', e => {
 let engine, car, wheels, constraints, trackBodies, finishX, currentLevel = 1;
 let activePower = null, powerTimer = 0, nextPowerTime = 0, powerDuration = 0, powerElapsed = 0;
 let flipTimer = 0, flipped = false, levelComplete = false, gameStarted = false;
+let levelTime = 0;
 let reverseControls = false;
 let screenTint = null;
 let cameraX = 0, cameraY = 0;
@@ -269,7 +272,7 @@ function buildTrack(level) {
   const segments = [];
   const difficulty = Math.min(level, 5);
   segments.push({ type: 'flat', length: 300 });
-  for (let i = 0; i < 8 + difficulty * 3; i++) {
+  for (let i = 0; i < 14 + difficulty * 4; i++) {
     const r = Math.random();
     const steepness = 1 + difficulty * 0.3;
     if (r < 0.25) segments.push({ type: 'ramp', length: 140 + Math.random() * 80, angle: (10 + Math.random() * 15 * steepness) * (Math.random() > 0.5 ? -1 : 1) });
@@ -406,9 +409,11 @@ function initLevel() {
   });
 
   flipTimer = 0; flipped = false; levelComplete = false;
+  levelTime = 0;
   activePower = null; reverseControls = false; screenTint = null;
   engine.timing.timeScale = 1;
-  powerTimer = 0; nextPowerTime = 8 + Math.random() * 4;
+  const diff = Math.min(currentLevel, 10);
+  powerTimer = 0; nextPowerTime = Math.max(3, 8 - diff * 0.5) + Math.random() * 3;
   powerElapsed = 0; powerDuration = 0;
   powerNameEl.textContent = 'No Power';
   powerTimerFill.style.width = '0%';
@@ -419,7 +424,18 @@ function initLevel() {
 function onLevelComplete() {
   levelComplete = true;
   if (activePower) { activePower.remove(); activePower = null; }
-  showOverlay('LEVEL COMPLETE!', 'Tap or press any key for next level', '#4CAF50');
+  // Freeze the car in place
+  Body.setStatic(car, true);
+  wheels.forEach(w => Body.setStatic(w, true));
+  // Confetti burst
+  const confettiColors = ['#FF6B6B', '#FFD93D', '#6BCB77', '#4D96FF', '#FF6FC8', '#FFA34D'];
+  for (let i = 0; i < 60; i++) {
+    const cx = car.position.x + (Math.random() - 0.5) * 100;
+    const cy = car.position.y - 40 - Math.random() * 60;
+    confettiColors.forEach(c => spawnParticles(cx, cy, c, 1));
+  }
+  const timeStr = levelTime.toFixed(1);
+  showOverlay('LEVEL COMPLETE!', `Time: ${timeStr}s — Tap or press any key for next level`, '#4CAF50');
   const handler = () => {
     currentLevel++; initLevel();
     window.removeEventListener('keydown', handler);
@@ -445,7 +461,8 @@ function activateRandomPower() {
   if (activePower) activePower.remove();
   const p = powers[Math.floor(Math.random() * powers.length)];
   activePower = p;
-  powerDuration = 3 + Math.random() * 2;
+  const diff = Math.min(currentLevel, 10);
+  powerDuration = 3 + Math.random() * 2 + diff * 0.3;
   powerElapsed = 0;
   p.apply();
   powerNameEl.textContent = p.icon + ' ' + p.name;
@@ -457,7 +474,8 @@ function deactivatePower() {
   if (activePower) { activePower.remove(); activePower = null; }
   powerNameEl.textContent = 'No Power';
   powerTimerFill.style.width = '0%';
-  nextPowerTime = 8 + Math.random() * 4;
+  const diff = Math.min(currentLevel, 10);
+  nextPowerTime = Math.max(3, 8 - diff * 0.5) + Math.random() * 3;
   powerTimer = 0;
 }
 
@@ -752,11 +770,19 @@ function gameLoop(time) {
 
   // Controls
   if (!flipped && !levelComplete) {
+    const diff = Math.min(currentLevel, 10);
     const torque = 0.08;
+    const liftForce = 0.002 + diff * 0.0015; // more wheelie at higher levels
     let left = keys['ArrowLeft'], right = keys['ArrowRight'];
     if (reverseControls) [left, right] = [right, left];
-    if (right) wheels.forEach(w => Body.setAngularVelocity(w, Math.min(w.angularVelocity + torque, 0.5)));
-    if (left) wheels.forEach(w => Body.setAngularVelocity(w, Math.max(w.angularVelocity - torque, -0.5)));
+    if (right) {
+      wheels.forEach(w => Body.setAngularVelocity(w, Math.min(w.angularVelocity + torque, 0.5)));
+      Body.applyForce(car, { x: car.position.x + 30, y: car.position.y }, { x: 0, y: -liftForce });
+    }
+    if (left) {
+      wheels.forEach(w => Body.setAngularVelocity(w, Math.max(w.angularVelocity - torque, -0.5)));
+      Body.applyForce(car, { x: car.position.x - 30, y: car.position.y }, { x: 0, y: -liftForce });
+    }
 
     if (activePower && activePower.name === 'TURBO!' && activePower._active) {
       Body.applyForce(car, car.position, { x: 0.008, y: 0 });
@@ -806,6 +832,12 @@ function gameLoop(time) {
   }
 
   updateParticles(dt);
+
+  // Level timer
+  if (!flipped && !levelComplete) {
+    levelTime += dt;
+  }
+  levelTimeDisplay.textContent = levelTime.toFixed(1) + 's';
 
   distanceDisplay.textContent = Math.max(0, Math.round(car.position.x / 10)) + 'm';
 
